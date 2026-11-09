@@ -11,6 +11,7 @@ const BW = 0.64; // 빌딩 폭
 const UNIT = 0.5; // 높이 1당 길이
 const RIM = 1.1; // 단서가 놓이는 테두리 폭
 const FOV = 40;
+const TOP_FOV = 1; // 위에서 보기: 사실상 평면(정사영)에 가까운 시야각
 
 const THEMES = {
   light: {
@@ -71,10 +72,11 @@ const easeOutBack = (t) => {
 const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
 export class CityScene {
-  constructor(container, { onCellClick, onClueClick } = {}) {
+  constructor(container, { onCellClick, onClueClick, onViewChange } = {}) {
     this.container = container;
     this.onCellClick = onCellClick || (() => {});
     this.onClueClick = onClueClick || (() => {});
+    this.onViewChange = onViewChange || (() => {});
     this.dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
     this.theme = this.dark ? THEMES.dark : THEMES.light;
 
@@ -95,10 +97,6 @@ export class CityScene {
     this.controls.enablePan = false;
     this.controls.maxPolarAngle = THREE.MathUtils.degToRad(84);
     this.controls.autoRotateSpeed = 1.2;
-    this.controls.addEventListener('start', () => {
-      this.controls.autoRotate = false;
-      this.cameraTween = null;
-    });
 
     this.hemi = new THREE.HemisphereLight();
     this.scene.add(this.hemi);
@@ -278,7 +276,7 @@ export class CityScene {
     }
     this.refreshTiles();
     this.focusClue = null;
-    this.setView('3d', true);
+    this.setView('3d', { instant: true });
   }
 
   clearBoard() {
@@ -678,37 +676,53 @@ export class CityScene {
     return extent / Math.tan(Math.min(vHalf, hHalf));
   }
 
-  setView(view, instant = false) {
+  /** 지금 카메라가 보드를 바라보는 방위각 */
+  currentAzimuth() {
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    if (Math.hypot(offset.x, offset.z) < 1e-9) return this.azimuth;
+    return Math.atan2(offset.x, offset.z);
+  }
+
+  /**
+   * @param {'3d'|'top'} view
+   * @param {{instant?: boolean, azimuth?: number}} opts
+   *   azimuth 를 주지 않으면 지금 바라보는 방향을 그대로 유지한다
+   *   (위에서 보기는 격자가 반듯하도록 가장 가까운 90° 로 맞춘다).
+   */
+  setView(view, { instant = false, azimuth } = {}) {
+    let az = azimuth ?? this.currentAzimuth();
+    if (view === 'top') az = Math.round(az / (Math.PI / 2)) * (Math.PI / 2);
+    this.azimuth = az;
     this.view = view;
-    this.focusClue = view === 'clue' ? this.focusClue : null;
+    this.focusClue = null;
     this.controls.autoRotate = false;
-    const target = new THREE.Vector3(0, view === 'top' ? 0 : 0.5, 0);
-    let pos;
+    const size = this.n * SP + RIM * 2;
+    let target;
+    let polar;
+    let dist;
+    let fov;
     if (view === 'top') {
-      const d = this.fitDistance((this.n * SP + RIM * 2) * 0.54) + 0.2;
-      // 정확히 수직이면 OrbitControls 가 방향을 잃으므로 아주 살짝 기울인다
-      pos = new THREE.Vector3(Math.sin(this.azimuth) * 0.001, d, Math.cos(this.azimuth) * 0.001);
+      // 아주 먼 곳에서 아주 좁은 시야각으로 내려다보면 원근감이 사라져 평면처럼 보인다
+      fov = TOP_FOV;
+      target = new THREE.Vector3(0, 0, 0);
+      polar = 1e-4; // 정확히 0 이면 OrbitControls 가 방향을 잃는다
+      dist = this.fitDistance(size * 0.54, fov);
     } else {
-      const d = this.fitDistance((this.n * SP + RIM * 2) * 0.6 + this.n * UNIT * 0.12);
-      const polar = THREE.MathUtils.degToRad(46);
-      pos = new THREE.Vector3(
-        Math.sin(polar) * Math.sin(this.azimuth) * d,
-        Math.cos(polar) * d,
-        Math.sin(polar) * Math.cos(this.azimuth) * d,
-      );
+      fov = FOV;
+      target = new THREE.Vector3(0, 0.5, 0);
+      polar = THREE.MathUtils.degToRad(46);
+      dist = this.fitDistance(size * 0.6 + this.n * UNIT * 0.12, fov);
     }
-    this.flyTo(pos, target, FOV, instant);
+    const pos = target.clone().add(new THREE.Vector3().setFromSphericalCoords(dist, polar, az));
+    this.flyTo(pos, target, fov, instant);
     this.refreshTiles();
     this.refreshClues();
   }
 
   rotate(dir) {
-    // 현재 카메라 방위각을 90° 단위로 맞춘 뒤 회전
-    const offset = this.camera.position.clone().sub(this.controls.target);
-    const current = Math.atan2(offset.x, offset.z);
-    const snapped = Math.round(current / (Math.PI / 2)) * (Math.PI / 2);
-    this.azimuth = snapped + dir * (Math.PI / 2);
-    this.setView(this.view === 'top' ? 'top' : '3d');
+    // 현재 방위각을 90° 단위로 맞춘 뒤 회전
+    const snapped = Math.round(this.currentAzimuth() / (Math.PI / 2)) * (Math.PI / 2);
+    this.setView(this.view === 'top' ? 'top' : '3d', { azimuth: snapped + dir * (Math.PI / 2) });
   }
 
   /** 단서 위치에서 줄을 따라 바라보는 시점 (망원 렌즈로 원근 왜곡을 줄임) */
@@ -729,26 +743,94 @@ export class CityScene {
     this.refreshClues();
   }
 
+  /**
+   * 카메라 이동. 위치를 직선으로 옮기지 않고 목표점 기준 구면 좌표(방위각/고도각)로
+   * 보간하므로, 바라보는 방향을 유지한 채 위로 올라가거나 내려온다.
+   * 시야각이 바뀌는 동안에는 화면에 보이는 크기가 자연스럽게 이어지도록 거리를 맞춘다.
+   */
   flyTo(pos, target, fov, instant = false) {
+    this.fovGoal = fov;
+    this.sizeGoal = null;
     if (instant) {
       this.camera.position.copy(pos);
       this.controls.target.copy(target);
       this.camera.fov = fov;
-      this.camera.updateProjectionMatrix();
+      this.updateClipping();
       this.controls.update();
       this.cameraTween = null;
       return;
     }
+    const from = new THREE.Spherical().setFromVector3(this.camera.position.clone().sub(this.controls.target));
+    const to = new THREE.Spherical().setFromVector3(pos.clone().sub(target));
+    // 방위각은 짧은 쪽으로 돈다
+    let dTheta = to.theta - from.theta;
+    dTheta = Math.atan2(Math.sin(dTheta), Math.cos(dTheta));
+    const halfTan = (f) => Math.tan(THREE.MathUtils.degToRad(f / 2));
     this.cameraTween = {
       t0: performance.now(),
-      dur: 750,
-      fromPos: this.camera.position.clone(),
-      toPos: pos,
+      dur: 800,
+      from,
+      to,
+      dTheta,
       fromTarget: this.controls.target.clone(),
       toTarget: target,
       fromFov: this.camera.fov,
       toFov: fov,
+      fromSize: from.radius * halfTan(this.camera.fov),
+      toSize: to.radius * halfTan(fov),
     };
+  }
+
+  stepCameraTween(now) {
+    const ct = this.cameraTween;
+    const t = Math.min(1, (now - ct.t0) / ct.dur);
+    const e = easeInOut(t);
+    const fov = ct.fromFov + (ct.toFov - ct.fromFov) * e;
+    const size = ct.fromSize + (ct.toSize - ct.fromSize) * e;
+    const radius = size / Math.tan(THREE.MathUtils.degToRad(fov / 2));
+    const phi = ct.from.phi + (ct.to.phi - ct.from.phi) * e;
+    const theta = ct.from.theta + ct.dTheta * e;
+    this.controls.target.lerpVectors(ct.fromTarget, ct.toTarget, e);
+    this.camera.position.copy(this.controls.target).add(new THREE.Vector3().setFromSphericalCoords(radius, phi, theta));
+    this.camera.fov = fov;
+    if (t >= 1) this.cameraTween = null;
+  }
+
+  /**
+   * 사용자가 위에서 보기/단서 시점에서 직접 돌리기 시작하면 시야각을 기본값으로
+   * 천천히 되돌린다. 보이는 크기는 유지한 채 거리만 바꾸므로 화면이 튀지 않는다.
+   */
+  stepFovNormalize() {
+    const goal = this.fovGoal ?? FOV;
+    if (this.sizeGoal == null && Math.abs(this.camera.fov - goal) < 0.01) return;
+    const halfTan = (f) => Math.tan(THREE.MathUtils.degToRad(f / 2));
+    const cur = this.camera.fov;
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    const size = offset.length() * halfTan(cur);
+    const sizeGoal = this.sizeGoal ?? size;
+    const k = 0.12;
+    const done = Math.abs(goal - cur) < 0.05 && Math.abs(sizeGoal - size) < 0.005;
+    const nextFov = done ? goal : cur + (goal - cur) * k;
+    const nextSize = done ? sizeGoal : size + (sizeGoal - size) * k;
+    offset.setLength(nextSize / halfTan(nextFov));
+    this.camera.position.copy(this.controls.target).add(offset);
+    this.camera.fov = nextFov;
+    if (done) this.sizeGoal = null;
+  }
+
+  /** 기본 3D 보기에서 화면에 보이는 크기 (거리 × tan(시야각/2)) */
+  defaultViewSize() {
+    const size = this.n * SP + RIM * 2;
+    const d = this.fitDistance(size * 0.6 + this.n * UNIT * 0.12, FOV);
+    return d * Math.tan(THREE.MathUtils.degToRad(FOV / 2));
+  }
+
+  /** 카메라가 아주 멀리 있을 때도 깊이 정밀도가 유지되도록 near/far 를 거리에 맞춘다 */
+  updateClipping() {
+    const r = this.camera.position.distanceTo(this.controls.target);
+    this.camera.near = Math.max(0.1, r - 30);
+    this.camera.far = r + 600;
+    this.camera.updateProjectionMatrix();
   }
 
   celebrate() {
@@ -788,24 +870,59 @@ export class CityScene {
   // -------------------------------------------------------------------------
   // 입력
 
+  /** 드래그/휠로 직접 카메라를 움직이기 시작함 */
+  onUserCamera() {
+    this.controls.autoRotate = false;
+    const wasTweening = !!this.cameraTween;
+    this.cameraTween = null;
+    if (this.view === 'top' || this.view === 'clue') {
+      // 평면/단서 시점을 벗어나 자유 시점으로 (시야각은 stepFovNormalize 가 천천히 복귀)
+      this.view = 'free';
+      this.fovGoal = FOV;
+      this.sizeGoal = this.defaultViewSize();
+      if (this.focusClue) {
+        this.focusClue = null;
+        this.refreshTiles();
+        this.refreshClues();
+      }
+      this.onViewChange(this.view);
+    } else if (wasTweening) {
+      this.fovGoal = FOV;
+      this.sizeGoal = this.defaultViewSize();
+    }
+  }
+
   bindEvents() {
     const el = this.renderer.domElement;
     let down = null;
+    const pointers = new Set();
     el.addEventListener('pointerdown', (e) => {
-      down = { x: e.clientX, y: e.clientY };
+      pointers.add(e.pointerId);
+      down = pointers.size === 1 ? { x: e.clientX, y: e.clientY, dragged: false } : null;
     });
+    const release = (e) => pointers.delete(e.pointerId);
+    el.addEventListener('pointercancel', (e) => { release(e); down = null; });
     el.addEventListener('pointerup', (e) => {
+      release(e);
       if (!down) return;
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+      const wasDrag = down.dragged;
       down = null;
-      if (moved > 6) return;
+      if (wasDrag || moved > 6) return;
       const hit = this.pick(e);
       if (!hit) return;
       if (hit.type === 'cell') this.onCellClick(hit.r, hit.c);
       else if (hit.type === 'clue') this.onClueClick(hit.side, hit.index);
     });
     el.addEventListener('pointermove', (e) => {
-      if (e.pointerType !== 'mouse') return;
+      // 한 손가락/마우스로 끌기 시작하면 = 회전 → 자유 시점으로
+      // (두 손가락 핀치와 휠은 확대/축소일 뿐이라 지금 시점을 유지한다)
+      if (down && !down.dragged && pointers.size === 1
+        && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) {
+        down.dragged = true;
+        this.onUserCamera();
+      }
+      if (e.pointerType !== 'mouse' || down) return;
       const hit = this.pick(e);
       const hc = hit && hit.type === 'cell' ? [hit.r, hit.c] : null;
       const hq = hit && hit.type === 'clue' ? { side: hit.side, index: hit.index } : null;
@@ -883,16 +1000,9 @@ export class CityScene {
       }
       this.tweens = keep;
     }
-    if (this.cameraTween) {
-      const ct = this.cameraTween;
-      const t = Math.min(1, (now - ct.t0) / ct.dur);
-      const e = easeInOut(t);
-      this.camera.position.lerpVectors(ct.fromPos, ct.toPos, e);
-      this.controls.target.lerpVectors(ct.fromTarget, ct.toTarget, e);
-      this.camera.fov = ct.fromFov + (ct.toFov - ct.fromFov) * e;
-      this.camera.updateProjectionMatrix();
-      if (t >= 1) this.cameraTween = null;
-    }
+    if (this.cameraTween) this.stepCameraTween(now);
+    else this.stepFovNormalize();
+    this.updateClipping();
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }

@@ -47,6 +47,11 @@ const city = new CityScene($('stage'), {
     select(r, c);
   },
   onClueClick: (side, index) => enterClueView(side, index),
+  // 드래그로 위에서 보기/단서 시점을 벗어났을 때
+  onViewChange: (view) => {
+    if (view !== 'clue') setClueBanner(null);
+    setViewButtons(view);
+  },
 });
 
 // ---------------------------------------------------------------------------
@@ -387,6 +392,7 @@ function enterClueView(side, index) {
   setClueBanner(`${lineLabel}을 ${SIDE_NAMES[side]}에서 본 모습 — 빌딩 ${value}개가 보여야 해요`);
 }
 
+/** 단서 시점에서 돌아갈 때는 바라보던 방향을 유지한 채 위로 올라온다 */
 function exitClueView() {
   setView('3d');
 }
