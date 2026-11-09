@@ -1,0 +1,9 @@
+{
+  "name": "logic-puzzle",
+  "private": true,
+  "description": "논리 퍼즐 게임 모음",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "node --test tests/*.test.mjs"
+  }
+}
