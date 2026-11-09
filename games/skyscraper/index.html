@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>스카이스크래퍼 · 논리 퍼즐 모음</title>
+  <meta name="description" content="3D로 즐기는 스카이스크래퍼(빌딩) 논리 퍼즐">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "../../vendor/three/three.module.min.js",
+        "three/addons/": "../../vendor/three/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <a class="back" href="../../" aria-label="퍼즐 모음으로 돌아가기">←<span> 모음</span></a>
+      <h1>스카이스크래퍼</h1>
+      <div class="status">
+        <span class="badge" id="info-badge">5×5 · 보통</span>
+        <span class="timer" id="timer" aria-label="경과 시간">00:00</span>
+        <button class="icon-btn" id="help-btn" type="button" aria-label="게임 방법">?</button>
+      </div>
+    </header>
+
+    <div class="stage" id="stage">
+      <div class="view-tools" role="toolbar" aria-label="시점">
+        <button type="button" class="chip" id="rot-left" title="왼쪽으로 90° 회전" aria-label="왼쪽으로 회전">⟲</button>
+        <button type="button" class="chip active" data-view="3d">3D</button>
+        <button type="button" class="chip" data-view="top">위에서</button>
+        <button type="button" class="chip" id="rot-right" title="오른쪽으로 90° 회전" aria-label="오른쪽으로 회전">⟳</button>
+      </div>
+      <div class="clue-banner" id="clue-banner" hidden>
+        <span id="clue-banner-text"></span>
+        <button type="button" class="chip" id="clue-exit">돌아가기</button>
+      </div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </div>
+
+    <aside class="panel">
+      <section class="pad-section">
+        <div class="pad" id="pad" aria-label="빌딩 높이 선택"></div>
+        <div class="tools">
+          <button type="button" class="tool" id="notes-btn" aria-pressed="false"><span class="ico">✎</span>메모</button>
+          <button type="button" class="tool" id="erase-btn"><span class="ico">⌫</span>지우기</button>
+          <button type="button" class="tool" id="undo-btn"><span class="ico">↶</span>되돌리기</button>
+        </div>
+      </section>
+
+      <section class="new-game">
+        <h2>새 퍼즐</h2>
+        <div class="seg" id="size-seg" role="radiogroup" aria-label="크기">
+          <button type="button" data-size="4">4×4</button>
+          <button type="button" data-size="5">5×5</button>
+          <button type="button" data-size="6">6×6</button>
+          <button type="button" data-size="7">7×7</button>
+        </div>
+        <div class="seg" id="diff-seg" role="radiogroup" aria-label="난이도">
+          <button type="button" data-diff="easy">쉬움</button>
+          <button type="button" data-diff="normal">보통</button>
+          <button type="button" data-diff="hard">어려움</button>
+        </div>
+        <button type="button" class="primary" id="new-btn">새 퍼즐 만들기</button>
+        <div class="row-btns">
+          <button type="button" class="ghost" id="reset-btn">처음부터</button>
+          <button type="button" class="ghost" id="check-btn">검사</button>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="auto-check" checked>
+          <span>실시간 오류 표시</span>
+        </label>
+        <p class="best" id="best"></p>
+      </section>
+    </aside>
+  </div>
+
+  <dialog class="modal" id="help-modal">
+    <form method="dialog">
+      <h2>게임 방법</h2>
+      <ol class="rules">
+        <li>격자의 모든 칸에 높이 <b>1 ~ N</b> 의 빌딩을 하나씩 세웁니다.</li>
+        <li>같은 <b>행</b>이나 <b>열</b>에는 같은 높이의 빌딩이 두 번 올 수 없습니다.</li>
+        <li>바깥쪽 숫자는 그 자리에서 줄을 따라 바라봤을 때 <b>보이는 빌딩의 수</b>입니다. 높은 빌딩 뒤에 있는 낮은 빌딩은 가려집니다.</li>
+      </ol>
+      <div class="example" aria-label="예시">
+        <div class="ex-row">
+          <span class="ex-clue">3</span>
+          <span class="ex-b" style="--h:2">2</span>
+          <span class="ex-b dim" style="--h:1">1</span>
+          <span class="ex-b" style="--h:3">3</span>
+          <span class="ex-b" style="--h:4">4</span>
+        </div>
+        <p>왼쪽에서 보면 2, 3, 4 가 보이고 1 은 2 에 가려 보이지 않아 <b>3</b> 입니다.</p>
+      </div>
+      <h3>조작</h3>
+      <ul class="controls">
+        <li><b>칸 선택</b> 클릭/탭 · 방향키</li>
+        <li><b>빌딩 세우기</b> 숫자 버튼 · 키보드 1~7</li>
+        <li><b>지우기</b> Backspace · Delete · 0</li>
+        <li><b>메모</b> N 키로 전환 · Shift+숫자</li>
+        <li><b>되돌리기</b> Ctrl+Z · U</li>
+        <li><b>시점 회전</b> 드래그 · Q / E 로 90° 회전 · T 위에서 보기</li>
+        <li><b>단서 시점</b> 바깥 숫자를 클릭하면 그 자리에서 바라본 모습을 볼 수 있습니다 (Esc 로 복귀)</li>
+      </ul>
+      <button class="primary" value="close">시작하기</button>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="win-modal">
+    <form method="dialog">
+      <p class="win-emoji" aria-hidden="true">🏙️</p>
+      <h2>도시 완성!</h2>
+      <p class="win-time" id="win-time"></p>
+      <p class="win-best" id="win-best"></p>
+      <div class="row-btns">
+        <button class="ghost" value="view">도시 감상하기</button>
+        <button class="primary" value="new" id="win-new">다음 퍼즐</button>
+      </div>
+    </form>
+  </dialog>
+
+  <noscript><p class="noscript">이 게임은 자바스크립트가 필요합니다.</p></noscript>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
