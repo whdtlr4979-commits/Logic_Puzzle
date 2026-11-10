@@ -12,4 +12,15 @@ export const GAMES = [
     tags: ['3D', '4×4 ~ 7×7', '라틴 방진'],
     accent: '#5b8cff',
   },
+  {
+    id: 'tents',
+    title: '나무와 텐트',
+    subtitle: 'Trees & Tents',
+    path: 'games/tents/',
+    thumbnail: 'games/tents/thumb.svg',
+    description:
+      '나무마다 텐트를 하나씩 바로 옆에 치세요. 텐트끼리는 대각선으로도 닿으면 안 되고, 바깥 숫자는 그 줄의 텐트 수예요. 3D 캠핑장에서 풀어요.',
+    tags: ['3D', '6×6 ~ 12×12', '배치 퍼즐'],
+    accent: '#2f9e58',
+  },
 ];

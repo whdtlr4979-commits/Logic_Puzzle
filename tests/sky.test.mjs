@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sunPosition, atmosphere, sunDirection, lerpSun, mixHex } from '../games/skyscraper/sky.js';
+import { sunPosition, atmosphere, sunDirection, lerpSun, mixHex } from '../games/common/sky.js';
 
 const deg = (r) => (r * 180) / Math.PI;
 // 서울(37.57N, 126.98E), 시각은 KST(UTC+9) 를 UTC 로 환산

@@ -1,36 +1,14 @@
 // 스카이스크래퍼 — 게임 진행 / UI
 import { generatePuzzle, findConflicts, clueStatus, isSolved, DIFFICULTIES, SIDES } from './puzzle.js';
 import { CityScene, heightColorCss } from './scene.js';
-import { sunPosition, PRESETS } from './sky.js';
+import { $, storage, formatTime, bindSeg, toast, setupSettings } from '../common/ui.js';
 
 const SAVE_KEY = 'logicpuzzle.skyscraper.save.v1';
 const BEST_KEY = 'logicpuzzle.skyscraper.best.v1';
 const PREF_KEY = 'logicpuzzle.skyscraper.prefs.v1';
 const SIDE_NAMES = { top: '위', bottom: '아래', left: '왼쪽', right: '오른쪽' };
 
-const $ = (id) => document.getElementById(id);
-
-const storage = {
-  get(key, fallback) {
-    try {
-      const v = localStorage.getItem(key);
-      return v ? JSON.parse(v) : fallback;
-    } catch {
-      return fallback;
-    }
-  },
-  set(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      /* 저장 불가 환경은 무시 */
-    }
-  },
-};
-
-const prefs = Object.assign({ size: 5, difficulty: 'normal', autoCheck: true, helpSeen: false, light: 'auto', shadows: true }, storage.get(PREF_KEY, {}));
-if (!['auto', 'day', 'evening', 'night'].includes(prefs.light)) prefs.light = 'auto';
-if (typeof prefs.shadows !== 'boolean') prefs.shadows = true;
+const prefs = Object.assign({ size: 5, difficulty: 'normal', autoCheck: true, helpSeen: false }, storage.get(PREF_KEY, {}));
 
 const state = {
   puzzle: null,
@@ -292,16 +270,6 @@ function updatePad() {
   }
 }
 
-function formatTime(ms) {
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  const mm = String(m).padStart(2, '0');
-  const ss = String(sec).padStart(2, '0');
-  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
-}
-
 function tick() {
   if (state.puzzle) $('timer').textContent = formatTime(currentElapsed());
 }
@@ -317,15 +285,6 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 window.addEventListener('pagehide', save);
-
-let toastTimer = 0;
-function toast(msg) {
-  const el = $('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
-}
 
 function bestKey() {
   return `${state.puzzle.n}-${state.puzzle.difficulty}`;
@@ -407,54 +366,7 @@ function setClueBanner(text) {
 }
 
 // ---------------------------------------------------------------------------
-// 조명 (현재 시각에 맞춘 해의 위치)
-
-function updateSky(duration = 0) {
-  const auto = prefs.light === 'auto';
-  const state = auto ? sunPosition(new Date()) : PRESETS[prefs.light];
-  city.setSun(state, duration);
-  const info = $('light-info');
-  if (!auto) {
-    info.textContent = '시간과 관계없이 고정된 조명이에요';
-    return;
-  }
-  const time = new Date().toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
-  const alt = Math.round((state.altitude * 180) / Math.PI);
-  info.textContent = alt > 0
-    ? `지금 ${time} · 해 높이 ${alt}°`
-    : `지금 ${time} · 해가 진 시간이에요`;
-}
-
-// 자동 모드에서는 1분마다 해를 조금씩 옮긴다
-setInterval(() => {
-  if (prefs.light === 'auto' && !document.hidden) updateSky(2000);
-}, 60 * 1000);
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && prefs.light === 'auto') updateSky(1500);
-});
-
-// ---------------------------------------------------------------------------
 // 이벤트 연결
-
-function bindSeg(id, attr, current, onPick) {
-  const seg = $(id);
-  const buttons = [...seg.querySelectorAll('button')];
-  const mark = (val) => {
-    for (const b of buttons) {
-      const on = b.dataset[attr] === String(val);
-      b.classList.toggle('active', on);
-      b.setAttribute('role', 'radio');
-      b.setAttribute('aria-checked', String(on));
-    }
-  };
-  mark(current);
-  for (const b of buttons) {
-    b.addEventListener('click', () => {
-      mark(b.dataset[attr]);
-      onPick(b.dataset[attr]);
-    });
-  }
-}
 
 bindSeg('size-seg', 'size', prefs.size, (v) => {
   prefs.size = Number(v);
@@ -464,12 +376,6 @@ bindSeg('diff-seg', 'diff', prefs.difficulty, (v) => {
   prefs.difficulty = v;
   storage.set(PREF_KEY, prefs);
 });
-bindSeg('light-seg', 'light', prefs.light, (v) => {
-  prefs.light = v;
-  storage.set(PREF_KEY, prefs);
-  updateSky(1500);
-});
-
 $('new-btn').addEventListener('click', () => {
   const unfinished = !state.solved && state.grid.flat().some((v, i) => v && !state.puzzle.givens.flat()[i]);
   if (unfinished && !confirm('진행 중인 퍼즐이 있어요. 새 퍼즐을 시작할까요?')) return;
@@ -495,16 +401,6 @@ $('rot-right').addEventListener('click', () => { setClueBanner(null); city.rotat
 $('clue-exit').addEventListener('click', exitClueView);
 
 $('help-btn').addEventListener('click', () => $('help-modal').showModal());
-$('settings-btn').addEventListener('click', () => {
-  if (prefs.light === 'auto') updateSky(); // 표시되는 시각을 최신으로
-  $('settings-modal').showModal();
-});
-$('shadow-toggle').checked = prefs.shadows;
-$('shadow-toggle').addEventListener('change', (e) => {
-  prefs.shadows = e.target.checked;
-  storage.set(PREF_KEY, prefs);
-  city.setShadows(prefs.shadows);
-});
 $('help-modal').addEventListener('close', () => {
   prefs.helpSeen = true;
   storage.set(PREF_KEY, prefs);
@@ -568,7 +464,6 @@ document.addEventListener('keydown', (e) => {
 // ---------------------------------------------------------------------------
 // 시작
 
-city.setShadows(prefs.shadows);
-updateSky();
+setupSettings(city);
 if (!loadSaved()) newGame();
 if (!prefs.helpSeen) $('help-modal').showModal();
