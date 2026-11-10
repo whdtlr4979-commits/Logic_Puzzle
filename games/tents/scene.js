@@ -24,6 +24,7 @@ const THEMES = {
     tileMarked: '#ddd29a',
     tileGiven: '#cfc38a',
     mark: '#b5a468',
+    markGlow: 0,
     tilePeer: '#93d483',
     tileSelect: '#8fb0ff',
     tileHover: '#9ad98b',
@@ -37,9 +38,10 @@ const THEMES = {
     base: '#3b3550',
     tile: '#2e5a46',
     tileAlt: '#2a5341',
-    tileMarked: '#5c5a46',
-    tileGiven: '#525040',
-    mark: '#7d7a5c',
+    tileMarked: '#4a4736',
+    tileGiven: '#423f30',
+    mark: '#f3e7b2',
+    markGlow: 0.55, // 밤에는 ✕ 가 어둠 속에서도 보이도록 살짝 빛나게
     tilePeer: '#3b6d56',
     tileSelect: '#5b7cff',
     tileHover: '#3f7560',
@@ -75,7 +77,7 @@ const GEO = {
   door: shared(makeTriangle(0.26, 0.38)),
   pole: shared(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 5).translate(0, 0.08, 0)),
   flag: shared(makeTriangle(0.1, 0.07).rotateZ(-Math.PI / 2)),
-  markBar: shared(new THREE.BoxGeometry(0.34, 0.012, 0.05)),
+  markBar: shared(new THREE.BoxGeometry(0.36, 0.014, 0.065)),
 };
 
 /** 바닥이 xz 평면에 놓인 삼각 기둥 (앞면이 +z) */
@@ -345,7 +347,7 @@ export class TentScene extends Stage3D {
   addMark(cell, animate = false) {
     if (cell.mark) return;
     // 텐트 없음 표시: 흙빛 타일 위에 작은 × 자국
-    const mat = new THREE.MeshStandardMaterial({ color: this.theme.mark, roughness: 1 });
+    const mat = new THREE.MeshStandardMaterial({ color: this.theme.mark, roughness: 1, emissive: new THREE.Color(this.theme.mark) });
     const g = new THREE.Group();
     for (const a of [Math.PI / 4, -Math.PI / 4]) {
       const bar = new THREE.Mesh(GEO.markBar, mat);
@@ -444,7 +446,13 @@ export class TentScene extends Stage3D {
     if (this.errors.has(key)) color = th.tileError;
     if (cell.r === sr && cell.c === sc) color = th.tileSelect;
     cell.tile.material.color.set(color);
-    if (cell.mark) cell.mark.mat.color.set(cell.given ? mixHex(th.mark, '#000000', 0.25) : th.mark);
+    if (cell.mark) {
+      // 처음부터 주어진 칸의 ✕ 는 조금 흐리게 (낮에는 어둡게, 밤에는 덜 밝게)
+      const markColor = cell.given ? mixHex(th.mark, th.tileGiven, 0.35) : th.mark;
+      cell.mark.mat.color.set(markColor);
+      cell.mark.mat.emissive.set(markColor);
+      cell.mark.mat.emissiveIntensity = th.markGlow;
+    }
     if (cell.tent) {
       const bad = this.errors.has(key);
       cell.tent.fabric.color.set(bad ? '#ff4d5e' : cell.tent.color);
