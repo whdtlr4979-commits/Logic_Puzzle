@@ -26,7 +26,8 @@
       <div class="status">
         <span class="badge" id="info-badge">5×5 · 보통</span>
         <span class="timer" id="timer" aria-label="경과 시간">00:00</span>
-        <button class="icon-btn" id="help-btn" type="button" aria-label="게임 방법">?</button>
+        <button class="icon-btn" id="settings-btn" type="button" aria-label="설정" title="설정">⚙</button>
+        <button class="icon-btn" id="help-btn" type="button" aria-label="게임 방법" title="게임 방법">?</button>
       </div>
     </header>
 
@@ -78,17 +79,6 @@
         </label>
         <p class="best" id="best"></p>
       </section>
-
-      <section class="lighting">
-        <h2>조명</h2>
-        <div class="seg" id="light-seg" role="radiogroup" aria-label="조명">
-          <button type="button" data-light="auto">자동</button>
-          <button type="button" data-light="day">낮</button>
-          <button type="button" data-light="evening">저녁</button>
-          <button type="button" data-light="night">밤</button>
-        </div>
-        <p class="light-info" id="light-info"></p>
-      </section>
     </aside>
   </div>
 
@@ -118,10 +108,39 @@
         <li><b>메모</b> N 키로 전환 · Shift+숫자</li>
         <li><b>되돌리기</b> Ctrl+Z · U</li>
         <li><b>시점 회전</b> 드래그 · Q / E 로 90° 회전 · T 위에서 보기</li>
-        <li><b>조명</b> 자동으로 두면 지금 시각에 맞춰 해의 위치와 밝기가 바뀝니다</li>
+        <li><b>설정 ⚙</b> 조명(자동/낮/저녁/밤)과 그림자를 바꿀 수 있습니다. 조명을 자동으로 두면 지금 시각에 맞춰 해의 위치와 밝기가 바뀝니다</li>
         <li><b>단서 시점</b> 바깥 숫자를 클릭하면 그 자리에서 바라본 모습을 볼 수 있습니다 (Esc 로 복귀)</li>
       </ul>
       <button class="primary" value="close">시작하기</button>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="settings-modal" aria-labelledby="settings-title">
+    <form method="dialog">
+      <h2 id="settings-title">설정</h2>
+
+      <section class="setting">
+        <h3>조명</h3>
+        <div class="seg" id="light-seg" role="radiogroup" aria-label="조명">
+          <button type="button" data-light="auto">자동</button>
+          <button type="button" data-light="day">낮</button>
+          <button type="button" data-light="evening">저녁</button>
+          <button type="button" data-light="night">밤</button>
+        </div>
+        <p class="setting-note" id="light-info"></p>
+      </section>
+
+      <section class="setting">
+        <label class="switch-row">
+          <span>
+            <span class="setting-title">그림자</span>
+            <span class="setting-note">끄면 느린 기기에서 더 부드럽게 움직여요</span>
+          </span>
+          <input type="checkbox" class="switch" id="shadow-toggle" checked>
+        </label>
+      </section>
+
+      <button class="primary" value="close">닫기</button>
     </form>
   </dialog>
 
