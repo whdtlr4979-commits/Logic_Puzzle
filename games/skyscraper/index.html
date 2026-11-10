@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../common/game.css">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
     {
@@ -112,35 +113,6 @@
         <li><b>단서 시점</b> 바깥 숫자를 클릭하면 그 자리에서 바라본 모습을 볼 수 있습니다 (Esc 로 복귀)</li>
       </ul>
       <button class="primary" value="close">시작하기</button>
-    </form>
-  </dialog>
-
-  <dialog class="modal" id="settings-modal" aria-labelledby="settings-title">
-    <form method="dialog">
-      <h2 id="settings-title">설정</h2>
-
-      <section class="setting">
-        <h3>조명</h3>
-        <div class="seg" id="light-seg" role="radiogroup" aria-label="조명">
-          <button type="button" data-light="auto">자동</button>
-          <button type="button" data-light="day">낮</button>
-          <button type="button" data-light="evening">저녁</button>
-          <button type="button" data-light="night">밤</button>
-        </div>
-        <p class="setting-note" id="light-info"></p>
-      </section>
-
-      <section class="setting">
-        <label class="switch-row">
-          <span>
-            <span class="setting-title">그림자</span>
-            <span class="setting-note">끄면 느린 기기에서 더 부드럽게 움직여요</span>
-          </span>
-          <input type="checkbox" class="switch" id="shadow-toggle" checked>
-        </label>
-      </section>
-
-      <button class="primary" value="close">닫기</button>
     </form>
   </dialog>
 

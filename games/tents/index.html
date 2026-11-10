@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>나무와 텐트 · 논리 퍼즐 모음</title>
+  <meta name="description" content="3D로 즐기는 나무와 텐트 논리 퍼즐">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../common/game.css">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "../../vendor/three/three.module.min.js",
+        "three/addons/": "../../vendor/three/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <a class="back" href="../../" aria-label="퍼즐 모음으로 돌아가기">←<span> 모음</span></a>
+      <h1>나무와 텐트</h1>
+      <div class="status">
+        <span class="badge" id="info-badge">8×8 · 보통</span>
+        <span class="timer" id="timer" aria-label="경과 시간">00:00</span>
+        <button class="icon-btn" id="settings-btn" type="button" aria-label="설정" title="설정">⚙</button>
+        <button class="icon-btn" id="help-btn" type="button" aria-label="게임 방법" title="게임 방법">?</button>
+      </div>
+    </header>
+
+    <div class="stage" id="stage">
+      <div class="view-tools" role="toolbar" aria-label="시점">
+        <button type="button" class="chip" id="rot-left" title="왼쪽으로 90° 회전" aria-label="왼쪽으로 회전">⟲</button>
+        <button type="button" class="chip active" data-view="3d">3D</button>
+        <button type="button" class="chip" data-view="top">위에서</button>
+        <button type="button" class="chip" id="rot-right" title="오른쪽으로 90° 회전" aria-label="오른쪽으로 회전">⟳</button>
+      </div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </div>
+
+    <aside class="panel">
+      <section>
+        <div class="progress" aria-live="polite">
+          <span class="progress-label">⛺ 텐트</span>
+          <span class="progress-count"><b id="tent-count">0</b> / <span id="tent-total">0</span></span>
+        </div>
+        <div class="modes" id="mode-seg" role="radiogroup" aria-label="칸을 눌렀을 때">
+          <button type="button" data-mode="cycle"><span class="ico">↻</span>순환</button>
+          <button type="button" data-mode="tent"><span class="ico">⛺</span>텐트</button>
+          <button type="button" data-mode="grass"><span class="ico">✕</span>빈 땅</button>
+          <button type="button" data-mode="erase"><span class="ico">⌫</span>지우기</button>
+        </div>
+        <p class="mode-note" id="mode-note"></p>
+        <div class="tools">
+          <button type="button" class="tool" id="undo-btn"><span class="ico">↶</span>되돌리기</button>
+          <button type="button" class="tool" id="check-btn"><span class="ico">✓</span>검사</button>
+          <button type="button" class="tool" id="reset-btn"><span class="ico">⟲</span>처음부터</button>
+        </div>
+      </section>
+
+      <section class="new-game">
+        <h2>새 퍼즐</h2>
+        <div class="seg" id="size-seg" role="radiogroup" aria-label="크기">
+          <button type="button" data-size="6">6×6</button>
+          <button type="button" data-size="8">8×8</button>
+          <button type="button" data-size="10">10×10</button>
+          <button type="button" data-size="12">12×12</button>
+        </div>
+        <div class="seg" id="diff-seg" role="radiogroup" aria-label="난이도">
+          <button type="button" data-diff="easy">쉬움</button>
+          <button type="button" data-diff="normal">보통</button>
+          <button type="button" data-diff="hard">어려움</button>
+        </div>
+        <button type="button" class="primary" id="new-btn">새 퍼즐 만들기</button>
+        <label class="toggle">
+          <input type="checkbox" id="auto-check" checked>
+          <span>실시간 오류 표시</span>
+        </label>
+        <p class="best" id="best"></p>
+      </section>
+    </aside>
+  </div>
+
+  <dialog class="modal" id="help-modal">
+    <form method="dialog">
+      <h2>게임 방법</h2>
+      <ol class="rules">
+        <li>나무마다 <b>텐트를 하나씩</b>, 나무와 <b>위·아래·왼쪽·오른쪽</b>으로 맞닿게 칩니다. 나무와 텐트는 1:1로 짝을 이룹니다.</li>
+        <li>텐트끼리는 <b>대각선을 포함해</b> 서로 닿을 수 없습니다.</li>
+        <li>바깥쪽 숫자는 그 <b>행/열에 있는 텐트의 수</b>입니다.</li>
+      </ol>
+      <div class="example" aria-label="예시">
+        <div class="ex-grid" aria-hidden="true">
+          <span class="ex-n"></span><span class="ex-n">1</span><span class="ex-n">0</span><span class="ex-n">1</span>
+          <span class="ex-n">1</span><span class="ex-c tree">🌳</span><span class="ex-c x">✕</span><span class="ex-c tent">⛺</span>
+          <span class="ex-n">1</span><span class="ex-c tent">⛺</span><span class="ex-c x">✕</span><span class="ex-c tree">🌳</span>
+          <span class="ex-n">0</span><span class="ex-c x">✕</span><span class="ex-c x">✕</span><span class="ex-c x">✕</span>
+        </div>
+        <p>왼쪽 나무의 텐트는 바로 아래에, 오른쪽 나무의 텐트는 바로 위에 있습니다. 두 텐트는 대각선으로도 닿지 않고, 줄마다 숫자만큼 텐트가 있어요.</p>
+      </div>
+      <h3>조작</h3>
+      <ul class="controls">
+        <li><b>칸 누르기</b> 순환 모드: 빈칸 → 텐트 → 빈 땅(✕) → 빈칸</li>
+        <li><b>숫자 누르기</b> 텐트 수가 다 찬 줄의 남은 칸을 빈 땅으로 채웁니다</li>
+        <li><b>키보드</b> 방향키 이동 · 1 텐트 · 2 빈 땅 · 0/Backspace 지우기 · Space 순환</li>
+        <li><b>되돌리기</b> Ctrl+Z · U</li>
+        <li><b>시점</b> 드래그로 회전 · Q / E 90° 회전 · T 위에서 보기</li>
+        <li><b>설정 ⚙</b> 조명(자동/낮/저녁/밤)과 그림자</li>
+      </ul>
+      <button class="primary" value="close">시작하기</button>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="win-modal">
+    <form method="dialog">
+      <p class="win-emoji" aria-hidden="true">🏕️</p>
+      <h2>캠핑장 완성!</h2>
+      <p class="win-time" id="win-time"></p>
+      <p class="win-best" id="win-best"></p>
+      <div class="row-btns">
+        <button class="ghost" value="view">캠핑장 감상하기</button>
+        <button class="primary" value="new">다음 퍼즐</button>
+      </div>
+    </form>
+  </dialog>
+
+  <noscript><p class="noscript">이 게임은 자바스크립트가 필요합니다.</p></noscript>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

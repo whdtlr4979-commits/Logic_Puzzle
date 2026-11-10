@@ -1,0 +1,59 @@
+/* 나무와 텐트 전용 스타일 (공용은 ../common/game.css) */
+
+:root { --accent: #2f9e58; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --accent: #45b86f; }
+}
+:root[data-theme="dark"] { --accent: #45b86f; }
+
+.progress {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  background: var(--surface-2);
+  border-radius: 12px;
+}
+.progress-label { font-weight: 700; color: var(--muted); font-size: 14px; }
+.progress-count { font-variant-numeric: tabular-nums; color: var(--muted); }
+.progress-count b { font-size: 22px; color: var(--text); }
+.progress.full .progress-count b { color: var(--accent); }
+
+/* 칸을 눌렀을 때 동작 */
+.modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.modes button {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 10px 2px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+.modes button .ico { font-size: 22px; line-height: 1; }
+.modes button:hover { color: var(--text); }
+.modes button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.mode-note { font-size: 12.5px; color: var(--muted); margin: 8px 2px 0; min-height: 1em; }
+
+/* 도움말 예시 격자 */
+.ex-grid {
+  display: grid;
+  grid-template-columns: 24px repeat(3, 40px);
+  grid-auto-rows: 40px;
+  gap: 4px;
+  justify-content: center;
+}
+.ex-n { display: grid; place-items: center; font-weight: 800; color: var(--muted); font-size: 14px; }
+.ex-c {
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #7cc46a;
+  font-size: 22px;
+}
+.ex-c.x { background: #ddd29a; color: #8a7c45; font-size: 16px; font-weight: 800; }
