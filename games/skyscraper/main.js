@@ -20,6 +20,7 @@ const state = {
   elapsed: 0,
   startedAt: 0,
   solved: false,
+  round: 0, // 새 퍼즐/처음부터마다 늘어남 — 완성 연출 중에 판이 바뀌면 연출을 멈추는 데 쓴다
 };
 
 const city = new CityScene($('stage'), {
@@ -58,6 +59,7 @@ function startPuzzle(puzzle, saved) {
   state.elapsed = saved.elapsed || 0;
   state.startedAt = performance.now();
   state.solved = !!saved.solved;
+  state.round++;
   state.selected = firstEmpty() || [0, 0];
   city.build(puzzle);
   const n = puzzle.n;
@@ -297,7 +299,7 @@ function showBest() {
 
 function win() {
   state.elapsed = currentElapsed();
-  state.solved = true;
+  state.solved = true; // 이 순간부터 입력을 막고 시간을 멈춘다
   const all = storage.get(BEST_KEY, {});
   const key = bestKey();
   const prev = all[key];
@@ -307,15 +309,24 @@ function win() {
     storage.set(BEST_KEY, all);
   }
   tick();
-  city.setSelection(null);
-  city.celebrate();
-  setClueBanner(null);
+  showBest();
   $('win-time').textContent = formatTime(state.elapsed);
   $('win-best').textContent = isBest
     ? (prev ? `최고 기록 갱신! (이전 ${formatTime(prev)})` : '첫 완성 기록이에요!')
     : `최고 기록 ${formatTime(prev)}`;
-  showBest();
-  setTimeout(() => $('win-modal').showModal(), 1100);
+
+  // 완성 연출: 마지막 빌딩이 다 솟아오른 걸 보여 준 뒤 → 축하 → 엔딩 창
+  const round = state.round;
+  const still = () => state.round === round;
+  const BUILDING_RISE = 900;
+  setTimeout(() => {
+    if (!still()) return;
+    city.setSelection(null);
+    setClueBanner(null);
+    city.celebrate();
+    setViewButtons('3d');
+    setTimeout(() => { if (still()) $('win-modal').showModal(); }, 1500);
+  }, BUILDING_RISE);
 }
 
 function check() {
