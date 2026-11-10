@@ -357,3 +357,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .row-btns .primary { width: auto; flex: 1; }
 #win-modal form { width: min(360px, calc(100vw - 32px)); }
 #win-modal .row-btns { margin-top: 0; }
+
+.lighting h2 { font-size: 14px; margin: 0 0 10px; color: var(--muted); }
+.light-info { font-size: 13px; color: var(--muted); margin: 2px 0 0; min-height: 1em; }

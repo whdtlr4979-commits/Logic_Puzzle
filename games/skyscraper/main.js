@@ -1,6 +1,7 @@
 // 스카이스크래퍼 — 게임 진행 / UI
 import { generatePuzzle, findConflicts, clueStatus, isSolved, DIFFICULTIES, SIDES } from './puzzle.js';
 import { CityScene, heightColorCss } from './scene.js';
+import { sunPosition, PRESETS } from './sky.js';
 
 const SAVE_KEY = 'logicpuzzle.skyscraper.save.v1';
 const BEST_KEY = 'logicpuzzle.skyscraper.best.v1';
@@ -27,7 +28,8 @@ const storage = {
   },
 };
 
-const prefs = Object.assign({ size: 5, difficulty: 'normal', autoCheck: true, helpSeen: false }, storage.get(PREF_KEY, {}));
+const prefs = Object.assign({ size: 5, difficulty: 'normal', autoCheck: true, helpSeen: false, light: 'auto' }, storage.get(PREF_KEY, {}));
+if (!['auto', 'day', 'evening', 'night'].includes(prefs.light)) prefs.light = 'auto';
 
 const state = {
   puzzle: null,
@@ -404,6 +406,33 @@ function setClueBanner(text) {
 }
 
 // ---------------------------------------------------------------------------
+// 조명 (현재 시각에 맞춘 해의 위치)
+
+function updateSky(duration = 0) {
+  const auto = prefs.light === 'auto';
+  const state = auto ? sunPosition(new Date()) : PRESETS[prefs.light];
+  city.setSun(state, duration);
+  const info = $('light-info');
+  if (!auto) {
+    info.textContent = '';
+    return;
+  }
+  const time = new Date().toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
+  const alt = Math.round((state.altitude * 180) / Math.PI);
+  info.textContent = alt > 0
+    ? `지금 ${time} · 해 높이 ${alt}°`
+    : `지금 ${time} · 해가 진 시간이에요`;
+}
+
+// 자동 모드에서는 1분마다 해를 조금씩 옮긴다
+setInterval(() => {
+  if (prefs.light === 'auto' && !document.hidden) updateSky(2000);
+}, 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && prefs.light === 'auto') updateSky(1500);
+});
+
+// ---------------------------------------------------------------------------
 // 이벤트 연결
 
 function bindSeg(id, attr, current, onPick) {
@@ -433,6 +462,11 @@ bindSeg('size-seg', 'size', prefs.size, (v) => {
 bindSeg('diff-seg', 'diff', prefs.difficulty, (v) => {
   prefs.difficulty = v;
   storage.set(PREF_KEY, prefs);
+});
+bindSeg('light-seg', 'light', prefs.light, (v) => {
+  prefs.light = v;
+  storage.set(PREF_KEY, prefs);
+  updateSky(1500);
 });
 
 $('new-btn').addEventListener('click', () => {
@@ -523,5 +557,6 @@ document.addEventListener('keydown', (e) => {
 // ---------------------------------------------------------------------------
 // 시작
 
+updateSky();
 if (!loadSaved()) newGame();
 if (!prefs.helpSeen) $('help-modal').showModal();

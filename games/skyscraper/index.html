@@ -78,6 +78,17 @@
         </label>
         <p class="best" id="best"></p>
       </section>
+
+      <section class="lighting">
+        <h2>조명</h2>
+        <div class="seg" id="light-seg" role="radiogroup" aria-label="조명">
+          <button type="button" data-light="auto">자동</button>
+          <button type="button" data-light="day">낮</button>
+          <button type="button" data-light="evening">저녁</button>
+          <button type="button" data-light="night">밤</button>
+        </div>
+        <p class="light-info" id="light-info"></p>
+      </section>
     </aside>
   </div>
 
@@ -107,6 +118,7 @@
         <li><b>메모</b> N 키로 전환 · Shift+숫자</li>
         <li><b>되돌리기</b> Ctrl+Z · U</li>
         <li><b>시점 회전</b> 드래그 · Q / E 로 90° 회전 · T 위에서 보기</li>
+        <li><b>조명</b> 자동으로 두면 지금 시각에 맞춰 해의 위치와 밝기가 바뀝니다</li>
         <li><b>단서 시점</b> 바깥 숫자를 클릭하면 그 자리에서 바라본 모습을 볼 수 있습니다 (Esc 로 복귀)</li>
       </ul>
       <button class="primary" value="close">시작하기</button>

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { lineCells, SIDES } from './puzzle.js';
+import { atmosphere, sunDirection, lerpSun, mixHex, PRESETS } from './sky.js';
 
 const SP = 1; // 칸 간격
 const TILE = 0.9; // 바닥 타일 크기
@@ -48,11 +49,47 @@ const THEMES = {
     hemiGround: '#20203a',
     hemi: 1.5,
     sun: 1.6,
-    windowGlow: 0.55,
+    windowGlow: 0.75,
     clue: { open: ['#e9ecff', '#1c2350'], ok: ['#2fbf71', '#ffffff'], error: ['#ef4b5a', '#ffffff'] },
     noteInk: '#c9d0ff',
   },
 };
+
+/** 낮(0) ~ 밤(1) 사이의 테마 색을 섞는다 */
+function blendTheme(t) {
+  const a = THEMES.light;
+  const b = THEMES.dark;
+  const out = {};
+  for (const key of Object.keys(a)) {
+    const x = a[key];
+    const y = b[key];
+    if (typeof x === 'number') out[key] = x + (y - x) * t;
+    else if (typeof x === 'string') out[key] = mixHex(x, y, t);
+  }
+  const night = t > 0.5;
+  out.clue = night ? b.clue : a.clue;
+  out.noteInk = night ? b.noteInk : a.noteInk;
+  out.key = night ? 'd' : 'l';
+  return out;
+}
+
+function glowTexture(inner, outer) {
+  const S = 128;
+  const cv = document.createElement('canvas');
+  cv.width = S;
+  cv.height = S;
+  const g = cv.getContext('2d');
+  const grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  grad.addColorStop(0, inner);
+  grad.addColorStop(0.25, inner);
+  grad.addColorStop(0.32, outer);
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, S, S);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 /** 높이 → 빌딩 색 (낮을수록 청록, 높을수록 주황) */
 export function heightColor(h, n) {
@@ -77,8 +114,10 @@ export class CityScene {
     this.onCellClick = onCellClick || (() => {});
     this.onClueClick = onClueClick || (() => {});
     this.onViewChange = onViewChange || (() => {});
-    this.dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
-    this.theme = this.dark ? THEMES.dark : THEMES.light;
+    this.sunState = PRESETS.day;
+    this.atm = atmosphere(this.sunState.altitude);
+    this.theme = blendTheme(1 - this.atm.day);
+    this.skyTween = null;
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -108,6 +147,28 @@ export class CityScene {
     this.sun.shadow.normalBias = 0.02;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
+
+    // 밤에는 반대편 하늘의 달빛
+    this.moon = new THREE.DirectionalLight('#a9bbff');
+    this.moon.shadow.mapSize.set(1024, 1024);
+    this.moon.shadow.bias = -0.0005;
+    this.moon.shadow.normalBias = 0.02;
+    this.scene.add(this.moon);
+    this.scene.add(this.moon.target);
+
+    // 하늘에 보이는 해/달 (카메라를 낮게 내리면 보인다)
+    const disc = (tex, size) => {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: tex, transparent: true, depthWrite: false, fog: false,
+      }));
+      sp.scale.set(size, size, 1);
+      sp.renderOrder = -1;
+      sp.raycast = () => {};
+      this.scene.add(sp);
+      return sp;
+    };
+    this.sunDisc = disc(glowTexture('#fffbe8', 'rgba(255,214,120,0.45)'), 26);
+    this.moonDisc = disc(glowTexture('#f2f4ff', 'rgba(170,190,255,0.25)'), 14);
 
     this.ground = new THREE.Mesh(
       new THREE.CircleGeometry(300, 96),
@@ -146,30 +207,81 @@ export class CityScene {
 
   applyTheme() {
     const th = this.theme;
-    this.hemi.color.set(th.hemiSky);
+    const atm = this.atm;
+    // 노을 무렵에는 주변광과 바닥에 하늘빛이 물든다
+    this.hemi.color.set(mixHex(th.hemiSky, '#ffb48a', atm.golden * 0.6));
     this.hemi.groundColor.set(th.hemiGround);
     this.hemi.intensity = th.hemi;
-    this.sun.intensity = th.sun;
-    this.ground.material.color.set(th.ground);
-    if (this.baseMesh) {
-      this.baseMesh.material.color.set(th.base);
-    }
+    this.ground.material.color.set(mixHex(th.ground, atm.skyBottom, 0.25 + atm.golden * 0.3));
+    if (this.baseMesh) this.baseMesh.material.color.set(mixHex(th.base, atm.skyBottom, atm.golden * 0.25));
+
+    // 해: 실제 고도로 밝기/색을 정하고, 그림자가 너무 길어지지 않게 방향은 고도 10° 이상으로 둔다
+    const sunDir = sunDirection({ altitude: Math.max(this.sunState.altitude, THREE.MathUtils.degToRad(10)), azimuth: this.sunState.azimuth });
+    this.sun.position.set(sunDir.x * 20, sunDir.y * 20, sunDir.z * 20);
+    this.sun.color.set(atm.sunColor);
+    this.sun.intensity = THEMES.light.sun * atm.sunIntensity;
+    this.setCastShadow(this.sun, atm.sunIntensity > 0.02);
+
+    // 달: 해의 반대쪽 높은 하늘
+    const moonDir = sunDirection({ altitude: THREE.MathUtils.degToRad(48), azimuth: this.sunState.azimuth + Math.PI * 0.85 });
+    this.moon.position.set(moonDir.x * 20, moonDir.y * 20, moonDir.z * 20);
+    this.moon.intensity = 0.9 * atm.moonIntensity;
+    this.setCastShadow(this.moon, atm.moonIntensity > 0.5);
+
+    // 하늘에 그려지는 해/달
+    const realSun = sunDirection(this.sunState);
+    this.sunDisc.position.set(realSun.x * 150, realSun.y * 150, realSun.z * 150);
+    this.sunDisc.material.color.set(mixHex('#ffffff', '#ffb070', atm.golden));
+    this.sunDisc.visible = this.sunState.altitude > -0.06;
+    this.moonDisc.position.set(moonDir.x * 150, moonDir.y * 150, moonDir.z * 150);
+    this.moonDisc.material.opacity = atm.moonIntensity;
+    this.moonDisc.visible = atm.moonIntensity > 0.01;
+
+    // 배경 하늘 (캔버스는 투명, 뒤의 무대 배경을 바꾼다)
+    this.container.style.background = `linear-gradient(180deg, ${atm.skyTop}, ${atm.skyBottom})`;
+
     if (this.cells) {
+      const inkChanged = this.noteInk !== th.noteInk;
       for (const row of this.cells) {
         for (const cell of row) {
           if (cell.building) this.styleBuilding(cell);
-          if (cell.notes) this.drawNotes(cell, cell.noteMask);
+          if (cell.notes && inkChanged) this.drawNotes(cell, cell.noteMask);
         }
       }
       this.refreshTiles();
       this.refreshClues();
     }
+    this.noteInk = th.noteInk;
   }
 
-  setDark(dark) {
-    if (dark === this.dark) return;
-    this.dark = dark;
-    this.theme = dark ? THEMES.dark : THEMES.light;
+  setCastShadow(light, on) {
+    if (light.castShadow === on) return;
+    light.castShadow = on;
+    // 그림자 광원 수가 바뀌면 재질 셰이더를 다시 만들어야 한다
+    this.scene.traverse((o) => {
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      for (const m of mats) m.needsUpdate = true;
+    });
+  }
+
+  /**
+   * 해의 위치를 바꾼다 (라디안: altitude 고도, azimuth 북쪽 기준 방위각).
+   * @param {{altitude:number, azimuth:number}} state
+   * @param {number} duration 0 이면 즉시
+   */
+  setSun(state, duration = 0) {
+    if (!duration) {
+      this.skyTween = null;
+      this.applySun(state);
+      return;
+    }
+    this.skyTween = { t0: performance.now(), dur: duration, from: { ...this.sunState }, to: state };
+  }
+
+  applySun(state) {
+    this.sunState = state;
+    this.atm = atmosphere(state.altitude);
+    this.theme = blendTheme(1 - this.atm.day);
     this.applyTheme();
   }
 
@@ -262,11 +374,13 @@ export class CityScene {
     this.refreshClues();
 
     // 그림자 범위를 보드 크기에 맞춘다
-    const sh = this.sun.shadow.camera;
     const ext = size * 0.85;
-    sh.left = -ext; sh.right = ext; sh.top = ext; sh.bottom = -ext;
-    sh.near = 1; sh.far = 60;
-    sh.updateProjectionMatrix();
+    for (const light of [this.sun, this.moon]) {
+      const sh = light.shadow.camera;
+      sh.left = -ext; sh.right = ext; sh.top = ext; sh.bottom = -ext;
+      sh.near = 1; sh.far = 60;
+      sh.updateProjectionMatrix();
+    }
 
     // 주어진 칸
     for (let r = 0; r < n; r++) {
@@ -410,7 +524,7 @@ export class CityScene {
   }
 
   clueTexture(value, status) {
-    const key = `clue-${value}-${status}-${this.dark ? 'd' : 'l'}`;
+    const key = `clue-${value}-${status}-${this.theme.key}`;
     if (this.texCache.has(key)) return this.texCache.get(key);
     const S = 128;
     const cv = document.createElement('canvas');
@@ -606,8 +720,11 @@ export class CityScene {
       this.clueSprites[side].forEach((entry, i) => {
         if (!entry) return;
         const st = this.clueState[side][i];
-        entry.sprite.material.map = this.clueTexture(entry.value, st === 'none' ? 'open' : st);
-        entry.sprite.material.needsUpdate = true;
+        const tex = this.clueTexture(entry.value, st === 'none' ? 'open' : st);
+        if (entry.sprite.material.map !== tex) {
+          entry.sprite.material.map = tex;
+          entry.sprite.material.needsUpdate = true;
+        }
         const active = (this.hoverClue && this.hoverClue.side === side && this.hoverClue.index === i)
           || (this.focusClue && this.focusClue.side === side && this.focusClue.index === i);
         const s = active ? 0.74 : 0.62;
@@ -945,7 +1062,6 @@ export class CityScene {
     });
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.container);
-    window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', (e) => this.setDark(e.matches));
   }
 
   pick(e) {
@@ -999,6 +1115,12 @@ export class CityScene {
         }
       }
       this.tweens = keep;
+    }
+    if (this.skyTween) {
+      const st = this.skyTween;
+      const t = Math.min(1, (now - st.t0) / st.dur);
+      this.applySun(lerpSun(st.from, st.to, easeInOut(t)));
+      if (t >= 1) this.skyTween = null;
     }
     if (this.cameraTween) this.stepCameraTween(now);
     else this.stepFovNormalize();
