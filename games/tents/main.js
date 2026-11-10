@@ -30,6 +30,7 @@ const state = {
   elapsed: 0,
   startedAt: 0,
   solved: false,
+  round: 0, // 새 퍼즐/처음부터마다 늘어남 — 완성 연출 중에 판이 바뀌면 연출을 멈추는 데 쓴다
 };
 
 const camp = new TentScene($('stage'), {
@@ -62,6 +63,7 @@ function startPuzzle(puzzle, saved) {
   state.elapsed = saved.elapsed || 0;
   state.startedAt = performance.now();
   state.solved = !!saved.solved;
+  state.round++;
   state.selected = firstOpenCell() || [0, 0];
   camp.build(puzzle);
   const n = puzzle.n;
@@ -242,7 +244,7 @@ function showBest() {
 
 function win() {
   state.elapsed = currentElapsed();
-  state.solved = true;
+  state.solved = true; // 이 순간부터 입력을 막고 시간을 멈춘다
   const all = storage.get(BEST_KEY, {});
   const key = bestKey();
   const prev = all[key];
@@ -252,14 +254,41 @@ function win() {
     storage.set(BEST_KEY, all);
   }
   tick();
-  camp.celebrate();
-  setViewButtons('3d');
+  showBest();
   $('win-time').textContent = formatTime(state.elapsed);
   $('win-best').textContent = isBest
     ? (prev ? `최고 기록 갱신! (이전 ${formatTime(prev)})` : '첫 완성 기록이에요!')
     : `최고 기록 ${formatTime(prev)}`;
-  showBest();
-  setTimeout(() => $('win-modal').showModal(), 1100);
+
+  // 완성 연출: 마지막 텐트가 세워지는 걸 보여 준 뒤 → 남은 칸을 빈 땅으로 채우고 → 축하
+  const round = state.round;
+  const still = () => state.round === round;
+  const { puzzle, grid } = state;
+  const [sr, sc] = state.selected;
+  const open = [];
+  for (let r = 0; r < puzzle.n; r++) {
+    for (let c = 0; c < puzzle.n; c++) if (!puzzle.trees[r][c] && grid[r][c] === UNKNOWN) open.push([r, c]);
+  }
+  // 마지막으로 놓은 칸에서 가까운 순서로 퍼져 나가게
+  open.sort((a, b) => Math.hypot(a[0] - sr, a[1] - sc) - Math.hypot(b[0] - sr, b[1] - sc));
+  const TENT_POP = 600;
+  const STEP = Math.min(45, 900 / Math.max(1, open.length));
+  setTimeout(() => {
+    if (!still()) return;
+    open.forEach(([r, c], i) => setTimeout(() => {
+      if (!still()) return;
+      grid[r][c] = GRASS;
+      camp.setCell(r, c, GRASS, true);
+    }, i * STEP));
+    setTimeout(() => {
+      if (!still()) return;
+      save();
+      camp.celebrate();
+      setViewButtons('3d');
+      setTimeout(() => { if (still()) $('win-modal').showModal(); }, 1500);
+    }, open.length * STEP + 700);
+  }, TENT_POP);
+  save();
 }
 
 function check() {
