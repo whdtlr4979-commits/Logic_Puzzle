@@ -270,7 +270,7 @@ export class TentScene extends Stage3D {
     cell.state = state;
     if (state === TENT) this.addTent(cell, animate);
     else if (cell.tent) this.removeTent(cell, animate);
-    if (state === GRASS) this.addMark(cell);
+    if (state === GRASS) this.addMark(cell, animate);
     else if (cell.mark) this.removeMark(cell);
     this.styleCell(cell);
   }
@@ -342,7 +342,7 @@ export class TentScene extends Stage3D {
     }, dispose);
   }
 
-  addMark(cell) {
+  addMark(cell, animate = false) {
     if (cell.mark) return;
     // 텐트 없음 표시: 흙빛 타일 위에 작은 × 자국
     const mat = new THREE.MeshStandardMaterial({ color: this.theme.mark, roughness: 1 });
@@ -355,6 +355,10 @@ export class TentScene extends Stage3D {
     g.position.set(cell.x, TILE_H + 0.006, cell.z);
     this.board.add(g);
     cell.mark = { group: g, mat };
+    if (animate) {
+      g.scale.setScalar(0.001);
+      this.tween(240, (t) => g.scale.setScalar(Math.max(0.001, easeOutBack(t))));
+    }
   }
 
   removeMark(cell) {
