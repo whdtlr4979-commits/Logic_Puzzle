@@ -118,6 +118,7 @@ export class CityScene {
     this.atm = atmosphere(this.sunState.altitude);
     this.theme = blendTheme(1 - this.atm.day);
     this.skyTween = null;
+    this.shadows = true;
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -220,13 +221,13 @@ export class CityScene {
     this.sun.position.set(sunDir.x * 20, sunDir.y * 20, sunDir.z * 20);
     this.sun.color.set(atm.sunColor);
     this.sun.intensity = THEMES.light.sun * atm.sunIntensity;
-    this.setCastShadow(this.sun, atm.sunIntensity > 0.02);
+    this.setCastShadow(this.sun, this.shadows && atm.sunIntensity > 0.02);
 
     // 달: 해의 반대쪽 높은 하늘
     const moonDir = sunDirection({ altitude: THREE.MathUtils.degToRad(48), azimuth: this.sunState.azimuth + Math.PI * 0.85 });
     this.moon.position.set(moonDir.x * 20, moonDir.y * 20, moonDir.z * 20);
     this.moon.intensity = 0.9 * atm.moonIntensity;
-    this.setCastShadow(this.moon, atm.moonIntensity > 0.5);
+    this.setCastShadow(this.moon, this.shadows && atm.moonIntensity > 0.5);
 
     // 하늘에 그려지는 해/달
     const realSun = sunDirection(this.sunState);
@@ -252,6 +253,12 @@ export class CityScene {
       this.refreshClues();
     }
     this.noteInk = th.noteInk;
+  }
+
+  /** 그림자 켜기/끄기 */
+  setShadows(on) {
+    this.shadows = !!on;
+    this.applyTheme();
   }
 
   setCastShadow(light, on) {

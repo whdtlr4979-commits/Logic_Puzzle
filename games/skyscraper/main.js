@@ -28,8 +28,9 @@ const storage = {
   },
 };
 
-const prefs = Object.assign({ size: 5, difficulty: 'normal', autoCheck: true, helpSeen: false, light: 'auto' }, storage.get(PREF_KEY, {}));
+const prefs = Object.assign({ size: 5, difficulty: 'normal', autoCheck: true, helpSeen: false, light: 'auto', shadows: true }, storage.get(PREF_KEY, {}));
 if (!['auto', 'day', 'evening', 'night'].includes(prefs.light)) prefs.light = 'auto';
+if (typeof prefs.shadows !== 'boolean') prefs.shadows = true;
 
 const state = {
   puzzle: null,
@@ -414,7 +415,7 @@ function updateSky(duration = 0) {
   city.setSun(state, duration);
   const info = $('light-info');
   if (!auto) {
-    info.textContent = '';
+    info.textContent = '시간과 관계없이 고정된 조명이에요';
     return;
   }
   const time = new Date().toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
@@ -494,6 +495,16 @@ $('rot-right').addEventListener('click', () => { setClueBanner(null); city.rotat
 $('clue-exit').addEventListener('click', exitClueView);
 
 $('help-btn').addEventListener('click', () => $('help-modal').showModal());
+$('settings-btn').addEventListener('click', () => {
+  if (prefs.light === 'auto') updateSky(); // 표시되는 시각을 최신으로
+  $('settings-modal').showModal();
+});
+$('shadow-toggle').checked = prefs.shadows;
+$('shadow-toggle').addEventListener('change', (e) => {
+  prefs.shadows = e.target.checked;
+  storage.set(PREF_KEY, prefs);
+  city.setShadows(prefs.shadows);
+});
 $('help-modal').addEventListener('close', () => {
   prefs.helpSeen = true;
   storage.set(PREF_KEY, prefs);
@@ -557,6 +568,7 @@ document.addEventListener('keydown', (e) => {
 // ---------------------------------------------------------------------------
 // 시작
 
+city.setShadows(prefs.shadows);
 updateSky();
 if (!loadSaved()) newGame();
 if (!prefs.helpSeen) $('help-modal').showModal();
